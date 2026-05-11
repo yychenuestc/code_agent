@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-工具定义与执行函数 - 核心工具（10个）
+工具定义与执行函数 - 核心工具（16个）
 SQL 查询工具由外部 skill 提供，不在此文件中
 """
 import os
@@ -63,6 +63,28 @@ TOOLS = [
                     "content": {"type": "string", "description": "要写入的内容"}
                 },
                 "required": ["file_path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_file",
+            "description": "精确编辑已有文件，支持三种模式: 1) line_range: 替换指定行范围的内容; 2) replace: 将旧文本替换为新文本; 3) function_replace: 替换指定函数/方法的完整定义。比 write_file 更安全，只修改目标区域。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "文件完整路径"},
+                    "mode": {"type": "string", "description": "编辑模式: line_range/replace/function_replace", "enum": ["line_range", "replace", "function_replace"]},
+                    "start_line": {"type": "integer", "description": "起始行号(line_range模式，从1开始)"},
+                    "end_line": {"type": "integer", "description": "结束行号(line_range模式，包含此行)"},
+                    "old_text": {"type": "string", "description": "要替换的旧文本(replace模式)"},
+                    "new_text": {"type": "string", "description": "替换后的新文本(replace模式)"},
+                    "function_name": {"type": "string", "description": "要替换的函数/方法名(function_replace模式)"},
+                    "new_code": {"type": "string", "description": "新的函数/方法完整代码(function_replace模式)"},
+                    "class_name": {"type": "string", "description": "类名(function_replace模式，替换类方法时需要)"}
+                },
+                "required": ["file_path", "mode"]
             }
         }
     },
@@ -175,6 +197,89 @@ TOOLS = [
                     "context": {"type": "string", "description": "代码上下文说明（可选）"}
                 },
                 "required": ["code", "language"]
+            }
+        }
+    },
+    # ---- Git 工作流 ----
+    {
+        "type": "function",
+        "function": {
+            "name": "git_status",
+            "description": "查看Git仓库状态。返回当前分支、暂存区和工作区的变更摘要。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Git仓库路径（默认当前目录）"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_diff",
+            "description": "查看Git差异。支持查看暂存区差异、工作区差异、指定提交间的差异。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Git仓库路径（默认当前目录）"},
+                    "target": {"type": "string", "description": "差异目标: staged(暂存区), unstaged(工作区), HEAD(与上次提交比), 或commit hash", "enum": ["staged", "unstaged", "HEAD"]},
+                    "file_path": {"type": "string", "description": "限定文件路径（可选）"},
+                    "max_lines": {"type": "integer", "description": "最大输出行数（默认200）"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_commit",
+            "description": "提交Git变更。将暂存区的修改提交到仓库。危险操作，会进行安全检查。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Git仓库路径（默认当前目录）"},
+                    "message": {"type": "string", "description": "提交信息"},
+                    "add_all": {"type": "boolean", "description": "是否暂存所有变更后提交（默认false）"}
+                },
+                "required": ["message"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_checkout",
+            "description": "切换Git分支或恢复文件。支持创建新分支、切换分支、恢复工作区文件。危险操作，会进行安全检查。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {"type": "string", "description": "Git仓库路径（默认当前目录）"},
+                    "action": {"type": "string", "description": "操作类型: switch(切换分支), create(创建并切换新分支), restore(恢复文件到最新提交)", "enum": ["switch", "create", "restore"]},
+                    "branch": {"type": "string", "description": "分支名(switch/create操作)"},
+                    "file_path": {"type": "string", "description": "要恢复的文件路径(restore操作)"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    # ---- 语义搜索 ----
+    {
+        "type": "function",
+        "function": {
+            "name": "semantic_search",
+            "description": "语义代码搜索。基于AI嵌入向量理解代码含义，用自然语言描述即可找到相关代码。比search_code更智能，不依赖精确关键词匹配。首次使用需构建索引。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_path": {"type": "string", "description": "项目根目录路径"},
+                    "query": {"type": "string", "description": "自然语言搜索描述（如'处理用户认证的逻辑'、'数据库连接配置'）"},
+                    "top_k": {"type": "integer", "description": "返回结果数量（默认10，最大20）"},
+                    "force_reindex": {"type": "boolean", "description": "是否强制重建索引（默认false，仅在代码大幅变更后使用）"}
+                },
+                "required": ["project_path", "query"]
             }
         }
     },
@@ -331,6 +436,141 @@ def tool_write_file(args):
         return f"写入失败: {e}"
 
 
+def _find_function_range(lines, func_name, class_name=None):
+    """使用AST精确定位函数/方法的行范围"""
+    source = "\n".join(lines)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+
+    for node in ast.walk(tree):
+        if class_name:
+            # 查找类中的方法
+            if isinstance(node, ast.ClassDef) and node.name == class_name:
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == func_name:
+                        return item.lineno, item.end_lineno
+        else:
+            # 查找顶层函数
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
+                # 确保不是类方法（已在上面处理）
+                return node.lineno, node.end_lineno
+    return None
+
+
+def tool_edit_file(args):
+    """精确编辑文件，支持行范围替换、文本替换、函数替换三种模式"""
+    file_path = args["file_path"]
+    mode = args["mode"]
+
+    if not os.path.exists(file_path):
+        return f"文件不存在: {file_path}"
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        lines = content.split('\n')
+        original_count = len(lines)
+    except Exception as e:
+        return f"读取文件失败: {e}"
+
+    changed = False
+
+    if mode == "line_range":
+        start_line = args.get("start_line")
+        end_line = args.get("end_line")
+        new_text = args.get("new_text", "")
+
+        if start_line is None or end_line is None:
+            return "line_range模式需要 start_line 和 end_line 参数"
+
+        if start_line < 1 or end_line > original_count or start_line > end_line:
+            return f"行范围无效: start_line={start_line}, end_line={end_line}, 文件共{original_count}行"
+
+        # 显示被替换的内容以便确认
+        replaced = "\n".join(lines[start_line - 1:end_line])
+        new_lines = new_text.split('\n') if new_text else []
+        lines[start_line - 1:end_line] = new_lines
+        changed = True
+
+        result_msg = f"已编辑: {file_path}\n"
+        result_msg += f"  替换行: {start_line}-{end_line} ({end_line - start_line + 1}行) → {len(new_lines)}行\n"
+        result_msg += f"  原内容预览: {replaced[:200]}..."
+
+    elif mode == "replace":
+        old_text = args.get("old_text", "")
+        new_text = args.get("new_text", "")
+
+        if not old_text:
+            return "replace模式需要 old_text 参数"
+
+        count = content.count(old_text)
+        if count == 0:
+            return f"未找到要替换的文本。请先用 read_file 确认文件内容。"
+        if count > 1:
+            # 提供上下文帮助定位
+            positions = []
+            idx = 0
+            for i in range(min(count, 5)):
+                pos = content.find(old_text, idx)
+                line_no = content[:pos].count('\n') + 1
+                positions.append(f"第{line_no}行")
+                idx = pos + 1
+            return f"找到{count}处匹配，无法确定替换哪一处。匹配位置: {', '.join(positions)}。请提供更多上下文使匹配唯一。"
+
+        content = content.replace(old_text, new_text, 1)
+        lines = content.split('\n')
+        changed = True
+        result_msg = f"已编辑: {file_path}\n"
+        result_msg += f"  替换1处文本 ({len(old_text)}字符 → {len(new_text)}字符)"
+
+    elif mode == "function_replace":
+        func_name = args.get("function_name", "")
+        class_name = args.get("class_name")
+        new_code = args.get("new_code", "")
+
+        if not func_name:
+            return "function_replace模式需要 function_name 参数"
+
+        range_result = _find_function_range(lines, func_name, class_name)
+        if range_result is None:
+            scope = f"{class_name}.{func_name}" if class_name else func_name
+            return f"未找到函数: {scope}。请先用 read_file 确认函数名。"
+
+        start_line, end_line = range_result
+        replaced = "\n".join(lines[start_line - 1:end_line])
+        new_lines = new_code.split('\n') if new_code else []
+        lines[start_line - 1:end_line] = new_lines
+        changed = True
+
+        scope = f"{class_name}.{func_name}" if class_name else func_name
+        result_msg = f"已编辑: {file_path}\n"
+        result_msg += f"  替换函数: {scope} (行{start_line}-{end_line}, {end_line - start_line + 1}行 → {len(new_lines)}行)"
+
+    else:
+        return f"未知编辑模式: {mode}，支持: line_range, replace, function_replace"
+
+    if changed:
+        # Hook安全检查
+        new_content = "\n".join(lines)
+        hook_result = check_file_write_safety(file_path, new_content)
+        if not hook_result.allowed:
+            return hook_result.message
+        if hook_result.needs_confirm:
+            return f"[需确认] {hook_result.confirm_message} 如确认写入，请直接说明。"
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            new_count = len(lines)
+            result_msg += f"\n  文件总行数: {original_count} → {new_count}"
+        except Exception as e:
+            return f"写入文件失败: {e}"
+
+    return result_msg
+
+
 def tool_search_code(args):
     project_path = args["project_path"]
     pattern = args["pattern"]
@@ -416,7 +656,7 @@ def tool_execute_python(args):
 
 
 # tool_execute_sql 已移至外部 skill
-# 安全检查和 Bigda 调用由 skill 内部的 check_sql_safety + execute_sql 提供
+# 安全检查和 SQL 调用由 skill 内部提供
 
 
 def tool_execute_java(args):
@@ -830,12 +1070,176 @@ def tool_code_review(args):
     return "\n".join(result_lines)
 
 
+# ============ Git 工作流工具 ============
+
+def _git_run(repo_path, *args, timeout=10):
+    """运行git命令的辅助函数"""
+    cmd = ["git", "-C", repo_path or "."] + list(args)
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, encoding='utf-8', errors='replace'
+        )
+        if result.returncode != 0:
+            return None, result.stderr.strip() or f"git命令失败 (exit code {result.returncode})"
+        return result.stdout.strip(), None
+    except subprocess.TimeoutExpired:
+        return None, "git命令超时"
+    except FileNotFoundError:
+        return None, "git未安装或不在PATH中"
+
+
+def tool_git_status(args):
+    """查看Git仓库状态"""
+    repo_path = args.get("repo_path", ".")
+
+    out, err = _git_run(repo_path, "status", "--porcelain=v2", "--branch")
+    if err:
+        # 尝试基础status
+        out, err = _git_run(repo_path, "status")
+        if err:
+            return f"获取Git状态失败: {err}"
+
+    # 获取分支信息
+    branch_out, _ = _git_run(repo_path, "branch", "--show-current")
+    branch = branch_out or "unknown"
+
+    # 获取简要统计
+    short_out, _ = _git_run(repo_path, "status", "--short")
+    if short_out:
+        lines = short_out.split('\n')
+        staged = sum(1 for l in lines if l and l[0] in 'MADRC')
+        unstaged = sum(1 for l in lines if l and len(l) > 1 and l[1] in 'MD')
+        untracked = sum(1 for l in lines if l.startswith('??'))
+        summary = f"暂存:{staged} 未暂存:{unstaged} 未跟踪:{untracked}"
+    else:
+        summary = "工作区干净"
+
+    # 详细的变更列表（截断）
+    detail = short_out[:1000] if short_out else "无变更"
+
+    return f"分支: {branch}\n统计: {summary}\n变更:\n{detail}"
+
+
+def tool_git_diff(args):
+    """查看Git差异"""
+    repo_path = args.get("repo_path", ".")
+    target = args.get("target", "unstaged")
+    file_path = args.get("file_path", "")
+    max_lines = args.get("max_lines", 200)
+
+    if target == "staged":
+        cmd_args = ["diff", "--cached"]
+    elif target == "HEAD":
+        cmd_args = ["diff", "HEAD"]
+    else:  # unstaged
+        cmd_args = ["diff"]
+
+    if file_path:
+        cmd_args += ["--", file_path]
+
+    out, err = _git_run(repo_path, *cmd_args, timeout=15)
+    if err:
+        return f"获取Git差异失败: {err}"
+
+    if not out:
+        return "无差异"
+
+    lines = out.split('\n')
+    if len(lines) > max_lines:
+        return '\n'.join(lines[:max_lines]) + f"\n... (共{len(lines)}行，已截断至{max_lines}行)"
+    return out
+
+
+def tool_git_commit(args):
+    """提交Git变更"""
+    repo_path = args.get("repo_path", ".")
+    message = args.get("message", "")
+    add_all = args.get("add_all", False)
+
+    if not message:
+        return "提交信息不能为空"
+
+    # 安全检查：禁止推送到主分支的提交（仅警告，不阻止）
+    branch_out, _ = _git_run(repo_path, "branch", "--show-current")
+    current_branch = branch_out or ""
+    protected = {"main", "master"}
+    if current_branch in protected and add_all:
+        return f"[需确认] 当前在受保护分支 '{current_branch}' 上执行 add_all + commit，如确认请说明。"
+
+    if add_all:
+        out, err = _git_run(repo_path, "add", "-A")
+        if err:
+            return f"暂存变更失败: {err}"
+
+    out, err = _git_run(repo_path, "commit", "-m", message, timeout=15)
+    if err:
+        if "nothing to commit" in err or "nothing to commit" in (out or ""):
+            return "没有需要提交的变更"
+        return f"提交失败: {err}"
+
+    # 获取提交hash
+    hash_out, _ = _git_run(repo_path, "rev-parse", "--short", "HEAD")
+    commit_hash = hash_out or "unknown"
+
+    return f"提交成功: {commit_hash} on {current_branch}\n{out}"
+
+
+def tool_git_checkout(args):
+    """切换Git分支或恢复文件"""
+    repo_path = args.get("repo_path", ".")
+    action = args.get("action", "")
+    branch = args.get("branch", "")
+    file_path = args.get("file_path", "")
+
+    if action == "switch":
+        if not branch:
+            return "切换分支需要 branch 参数"
+        out, err = _git_run(repo_path, "checkout", branch, timeout=10)
+        if err:
+            return f"切换分支失败: {err}"
+        return f"已切换到分支: {branch}"
+
+    elif action == "create":
+        if not branch:
+            return "创建分支需要 branch 参数"
+        out, err = _git_run(repo_path, "checkout", "-b", branch, timeout=10)
+        if err:
+            return f"创建分支失败: {err}"
+        return f"已创建并切换到新分支: {branch}"
+
+    elif action == "restore":
+        if not file_path:
+            return "恢复文件需要 file_path 参数"
+        out, err = _git_run(repo_path, "checkout", "HEAD", "--", file_path, timeout=10)
+        if err:
+            return f"恢复文件失败: {err}"
+        return f"已恢复文件: {file_path}"
+
+    else:
+        return f"未知操作: {action}，支持: switch, create, restore"
+
+
+# ============ 语义代码搜索 ============
+
+def tool_semantic_search(args):
+    """语义代码搜索（RAG）"""
+    from semantic_search import semantic_search
+
+    project_path = args["project_path"]
+    query = args["query"]
+    top_k = min(args.get("top_k", 10), 20)
+    force_reindex = args.get("force_reindex", False)
+
+    return semantic_search(project_path, query, top_k=top_k, force_reindex=force_reindex)
+
+
 # ============ 工具调度表 ============
 
 TOOL_DISPATCH = {
     "scan_project": tool_scan_project,
     "read_file": tool_read_file,
     "write_file": tool_write_file,
+    "edit_file": tool_edit_file,
     "search_code": tool_search_code,
     "execute_python": tool_execute_python,
     # execute_sql 由外部 skill 提供
@@ -844,4 +1248,11 @@ TOOL_DISPATCH = {
     "analyze_java": tool_analyze_java,
     "analyze_sql": tool_analyze_sql,
     "code_review": tool_code_review,
+    # ---- Git 工作流 ----
+    "git_status": tool_git_status,
+    "git_diff": tool_git_diff,
+    "git_commit": tool_git_commit,
+    "git_checkout": tool_git_checkout,
+    # ---- 语义搜索 ----
+    "semantic_search": tool_semantic_search,
 }

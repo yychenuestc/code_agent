@@ -11,6 +11,7 @@ from tools import (
     tool_scan_project,
     tool_read_file,
     tool_write_file,
+    tool_edit_file,
     tool_search_code,
     tool_execute_python,
     tool_execute_java,
@@ -18,6 +19,11 @@ from tools import (
     tool_analyze_java,
     tool_analyze_sql,
     tool_code_review,
+    tool_git_status,
+    tool_git_diff,
+    tool_git_commit,
+    tool_git_checkout,
+    tool_semantic_search,
 )
 
 
@@ -40,6 +46,29 @@ def read_file(file_path: str, start_line: int = 1, end_line: int = 0) -> str:
 def write_file(file_path: str, content: str) -> str:
     """写入或创建文件。对破坏性操作会进行安全检查。用于创建新文件或覆盖已有文件。"""
     return tool_write_file({"file_path": file_path, "content": content})
+
+
+@tool
+def edit_file(file_path: str, mode: str, start_line: int = 0, end_line: int = 0,
+              old_text: str = "", new_text: str = "", function_name: str = "",
+              new_code: str = "", class_name: str = "") -> str:
+    """精确编辑已有文件。支持三种模式: line_range(替换行范围), replace(文本替换), function_replace(替换函数定义)。"""
+    args = {"file_path": file_path, "mode": mode}
+    if start_line:
+        args["start_line"] = start_line
+    if end_line:
+        args["end_line"] = end_line
+    if old_text:
+        args["old_text"] = old_text
+    if new_text:
+        args["new_text"] = new_text
+    if function_name:
+        args["function_name"] = function_name
+    if new_code:
+        args["new_code"] = new_code
+    if class_name:
+        args["class_name"] = class_name
+    return tool_edit_file(args)
 
 
 @tool
@@ -99,12 +128,61 @@ def code_review(code: str, language: str, context: str = "") -> str:
     })
 
 
+# ---- Git 工作流工具 ----
+
+@tool
+def git_status(repo_path: str = ".") -> str:
+    """查看Git仓库状态。返回当前分支、暂存区和工作区的变更摘要。"""
+    return tool_git_status({"repo_path": repo_path})
+
+
+@tool
+def git_diff(repo_path: str = ".", target: str = "unstaged", file_path: str = "", max_lines: int = 200) -> str:
+    """查看Git差异。支持暂存区(staged)、工作区(unstaged)、与上次提交(HEAD)的差异。"""
+    args = {"repo_path": repo_path, "target": target, "max_lines": max_lines}
+    if file_path:
+        args["file_path"] = file_path
+    return tool_git_diff(args)
+
+
+@tool
+def git_commit(message: str, repo_path: str = ".", add_all: bool = False) -> str:
+    """提交Git变更。将暂存区的修改提交到仓库。设置add_all=True可暂存所有变更后提交。"""
+    return tool_git_commit({"message": message, "repo_path": repo_path, "add_all": add_all})
+
+
+@tool
+def git_checkout(action: str, repo_path: str = ".", branch: str = "", file_path: str = "") -> str:
+    """切换Git分支或恢复文件。action支持: switch(切换分支), create(创建新分支), restore(恢复文件)。"""
+    args = {"action": action, "repo_path": repo_path}
+    if branch:
+        args["branch"] = branch
+    if file_path:
+        args["file_path"] = file_path
+    return tool_git_checkout(args)
+
+
+# ---- 语义搜索工具 ----
+
+@tool
+def semantic_search(project_path: str, query: str, top_k: int = 10, force_reindex: bool = False) -> str:
+    """语义代码搜索。基于AI嵌入理解代码含义，用自然语言描述即可找到相关代码。比search_code更智能。"""
+    return tool_semantic_search({
+        "project_path": project_path,
+        "query": query,
+        "top_k": top_k,
+        "force_reindex": force_reindex,
+    })
+
+
 # 核心工具列表（不含 skill 提供的工具，skill 工具在运行时动态合并）
 CORE_TOOLS = [
-    scan_project, read_file, write_file, search_code,
+    scan_project, read_file, write_file, edit_file, search_code,
     execute_python, execute_java,
     analyze_python, analyze_java, analyze_sql,
     code_review,
+    git_status, git_diff, git_commit, git_checkout,
+    semantic_search,
 ]
 
 # Tool 名称到函数的映射

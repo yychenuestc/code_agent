@@ -12,13 +12,13 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, Tool
 from state import AgentState, TaskClassification, ExplorationResult, DesignResult, ReviewResult
 from llm import get_llm, get_structured_llm
 from tools_langchain import get_all_tools, get_all_tool_map
-from config import MODEL
+from config import MODEL, BIGDA_SQL_CONFIG
 from agents import get_agent_prompt
 from lang_skills import get_skill
 from skill_loader import load_all_skills, get_all_skill_prompts
 
-# 启动时加载所有外部 skill（无 skill 时为空，可按需在 skills/ 下添加）
-load_all_skills()
+# 启动时加载所有外部 skill
+load_all_skills(config_overrides={"bigda_sql": BIGDA_SQL_CONFIG})
 
 # 动态获取所有工具（核心 + skill）
 LANGCHAIN_TOOLS = get_all_tools()
@@ -46,29 +46,44 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 1. 项目扫描: 识别项目结构、语言、框架、构建工具
 2. 代码阅读: 读取源码文件，理解代码逻辑
 3. 代码搜索: 正则搜索代码，快速定位关键代码
-4. Python执行: 在沙箱中执行Python代码，验证逻辑
-5. SQL执行: 通过Bigda API执行Spark SQL查询
-6. Java执行: 编译运行Java代码片段
-7. 项目分析: Python/Java项目深度分析（入口点、依赖、架构）
-8. SQL分析: 语法检查、表血缘、字段映射
-9. 代码审查: 多维度审查，置信度过滤
-10. 文件写入: 创建新文件或修改代码（带安全检查）
+4. 语义搜索: 用自然语言描述找到相关代码（基于AI语义理解）
+5. Python执行: 在沙箱中执行Python代码，验证逻辑
+6. SQL执行: 通过Bigda API执行Spark SQL查询
+7. Java执行: 编译运行Java代码片段
+8. 项目分析: Python/Java项目深度分析（入口点、依赖、架构）
+9. SQL分析: 语法检查、表血缘、字段映射
+10. 代码审查: 多维度审查，置信度过滤
+11. 文件写入: 创建新文件或修改代码（带安全检查）
+12. 文件编辑: 精确编辑已有文件（行范围替换/文本替换/函数替换）
+13. Git操作: 查看状态、差异、提交、分支切换
 
 ## 工作流程
 
 ### 分析任务
 1. scan_project 了解项目结构
-2. read_file / search_code 深入理解代码
-3. analyze_python / analyze_java / analyze_sql 针对性分析
-4. 给出分析结论和建议
+2. semantic_search 用自然语言搜索相关代码（不确定关键词时优先使用）
+3. read_file / search_code 深入理解代码
+4. analyze_python / analyze_java / analyze_sql 针对性分析
+5. 给出分析结论和建议
 
 ### 开发任务
 1. scan_project 了解项目结构
 2. read_file 阅读相关代码
 3. 设计方案（如复杂任务可考虑多方案对比）
-4. write_file 写入代码（带安全确认）
-5. execute_python / execute_sql / execute_java 验证代码
-6. code_review 审查代码质量
+4. edit_file 精确修改代码（优先使用edit_file而非write_file）
+   - 修改几行代码：用 replace 模式指定 old_text → new_text
+   - 替换整个函数：用 function_replace 模式指定函数名和新代码
+   - 替换指定行范围：用 line_range 模式指定起止行号
+5. write_file 创建新文件（仅当文件不存在时使用）
+6. execute_python / execute_sql / execute_java 验证代码
+7. code_review 审查代码质量
+8. git_status + git_diff 确认变更，git_commit 提交
+
+### Git工作流
+- 修改代码后：git_status 查看变更 → git_diff 确认差异 → git_commit 提交
+- 需要新分支：git_checkout(create) 创建 → 修改代码 → 提交
+- 恢复误改：git_checkout(restore) 恢复文件
+- 注意：在 main/master 分支上执行 add_all+commit 需要确认
 
 ### 审查任务
 1. read_file 读取待审查代码

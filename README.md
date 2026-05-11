@@ -6,7 +6,7 @@
 
 - **多模型适配**：支持 DeepSeek / GLM 等多种 OpenAI 兼容 API，配置切换即可
 - **LangGraph 状态机驱动**：任务自动分类路由到不同处理流程（分析/开发/审查/对话）
-- **10 个核心工具**：项目扫描、文件读写、代码搜索、Python/Java 执行、代码审查等
+- **16 个核心工具**：项目扫描、文件读写、精确编辑、代码搜索、语义搜索、Python/Java 执行、Git 工作流、代码审查等
 - **Skill 插件体系**：通过 `skills/` 目录扩展能力，如 SQL 查询等
 - **安全拦截层**：Hook 系统自动拦截危险操作（文件删除、代码注入等）
 - **上下文记忆**：跨轮次对话保持完整上下文，支持工具调用历史追溯
@@ -22,8 +22,9 @@ code_agent/
 ├── llm.py                # LLM 封装（支持 function calling 结构化输出）
 ├── config.py             # 配置文件（API Key、超时、安全规则）
 ├── agents.py             # 专职 Agent 定义（explorer/architect/reviewer）
-├── tools.py              # 核心工具实现（10 个）
+├── tools.py              # 核心工具实现（16 个）
 ├── tools_langchain.py    # LangChain @tool 适配层
+├── semantic_search.py    # 语义代码搜索（RAG，基于 sentence-transformers）
 ├── hooks.py              # Hook 安全拦截器
 ├── lang_skills.py        # 语言技能提示（Python/SQL/Java）
 ├── skill_loader.py       # Skill 插件自动发现与加载
@@ -83,18 +84,24 @@ code_agent/
 | `scan_project` | 扫描项目目录结构，识别语言/框架 |
 | `read_file` | 读取文件内容 |
 | `write_file` | 写入/创建文件（带安全检查） |
+| `edit_file` | 精确编辑已有文件（行范围替换/文本替换/函数替换） |
 | `search_code` | 正则搜索代码 |
+| `semantic_search` | 语义代码搜索，用自然语言描述即可找到相关代码 |
 | `execute_python` | 执行 Python 代码（沙箱 + 超时） |
 | `execute_java` | 编译运行 Java 代码 |
 | `analyze_python` | 深入分析 Python 项目 |
 | `analyze_java` | 深入分析 Java 项目 |
 | `analyze_sql` | 分析 SQL 脚本 |
 | `code_review` | 代码审查（简洁性/正确性/规范性） |
+| `git_status` | 查看 Git 仓库状态 |
+| `git_diff` | 查看 Git 差异 |
+| `git_commit` | 提交 Git 变更 |
+| `git_checkout` | 切换分支/创建分支/恢复文件 |
 
 ## 安装
 
 ```bash
-pip install langchain-core langchain-openai langgraph requests
+pip install langchain-core langchain-openai langgraph requests sentence-transformers
 ```
 
 ## 配置
