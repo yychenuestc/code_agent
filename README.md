@@ -4,6 +4,7 @@
 
 ## 特性
 
+- **多模型适配**：支持 DeepSeek / GLM 等多种 OpenAI 兼容 API，配置切换即可
 - **LangGraph 状态机驱动**：任务自动分类路由到不同处理流程（分析/开发/审查/对话）
 - **10 个核心工具**：项目扫描、文件读写、代码搜索、Python/Java 执行、代码审查等
 - **Skill 插件体系**：通过 `skills/` 目录扩展能力，如 SQL 查询等
@@ -98,15 +99,27 @@ pip install langchain-core langchain-openai langgraph requests
 
 ## 配置
 
-编辑 `config.py`，填入你的 API Key：
+编辑 `config.py`，修改 `ACTIVE_MODEL` 选择模型，并填入对应的 API Key：
 
 ```python
-API_KEY = "your-api-key-here"
-BASE_URL = "https://api.deepseek.com/v1"
-MODEL = "deepseek-chat"
+MODEL_CONFIGS = {
+    "deepseek": {
+        "api_key": "your-deepseek-api-key",
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+    },
+    "glm": {
+        "api_key": "your-zhipu-api-key",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-5.1",
+    },
+}
+
+# 切换模型：修改此值即可
+ACTIVE_MODEL = "deepseek"  # 或 "glm"
 ```
 
-也支持其他 OpenAI 兼容的 API（如 OpenAI、Azure OpenAI 等），修改 `BASE_URL` 和 `MODEL` 即可。
+也支持添加其他 OpenAI 兼容 API（如 OpenAI、Azure OpenAI 等），按上述格式在 `MODEL_CONFIGS` 中新增预设即可。
 
 ## 使用
 
@@ -164,7 +177,7 @@ skills/
 
 - **LangGraph** — 状态图引擎，将 Agent 从 while 循环重构为显式状态机
 - **LangChain** — LLM 抽象层、工具绑定、消息类型
-- **DeepSeek API** — OpenAI 兼容的 LLM 后端
+- **DeepSeek / GLM 等** — OpenAI 兼容的 LLM 后端，配置切换
 - **Pydantic** — 结构化输出 schema
 
 ## License

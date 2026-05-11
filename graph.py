@@ -47,7 +47,7 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 2. 代码阅读: 读取源码文件，理解代码逻辑
 3. 代码搜索: 正则搜索代码，快速定位关键代码
 4. Python执行: 在沙箱中执行Python代码，验证逻辑
-5. SQL执行: 通过外部Skill执行SQL查询（需安装SQL skill）
+5. SQL执行: 通过Bigda API执行Spark SQL查询
 6. Java执行: 编译运行Java代码片段
 7. 项目分析: Python/Java项目深度分析（入口点、依赖、架构）
 8. SQL分析: 语法检查、表血缘、字段映射
@@ -113,7 +113,17 @@ def _run_tool_loop(llm_with_tools, messages, max_iterations=10):
     EXEC_TOOLS = {"execute_python", "execute_sql", "execute_java"}
 
     for iteration in range(max_iterations):
-        response = llm_with_tools.invoke(messages)
+        # 修复消息兼容性：部分 API（如 GLM）不接受空 content 的消息
+        valid_messages = []
+        for m in messages:
+            if isinstance(m, AIMessage) and m.tool_calls and not m.content:
+                # GLM 要求 AIMessage 的 content 不能为空，补充占位文本
+                m = AIMessage(content="[调用工具]", tool_calls=m.tool_calls)
+            elif isinstance(m, (HumanMessage, AIMessage)) and not getattr(m, 'content', None) and not getattr(m, 'tool_calls', None):
+                # 跳过既无内容又无工具调用的消息
+                continue
+            valid_messages.append(m)
+        response = llm_with_tools.invoke(valid_messages)
         messages.append(response)
 
         if not response.tool_calls:
@@ -178,6 +188,12 @@ def classify_task(state: AgentState) -> dict:
 
     # 无明确分类，用 LLM 判断
     user_input = state.get("user_input", "")
+    # 如果 user_input 为空，从 messages 中提取
+    if not user_input:
+        for msg in state.get("messages", []):
+            if isinstance(msg, HumanMessage) and msg.content:
+                user_input = msg.content
+                break
 
     classify_llm = get_structured_llm(TaskClassification, temperature=0)
     result = classify_llm.invoke([
@@ -196,6 +212,7 @@ def classify_task(state: AgentState) -> dict:
     return {
         "task_type": result.task_type,
         "language": result.language or existing_lang,
+        "user_input": user_input,
         "messages": [AIMessage(content=f"[分类] 任务类型: {result.task_type}, 语言: {result.language}, 置信度: {result.confidence}%")],
     }
 
@@ -217,6 +234,12 @@ def explore_project(state: AgentState) -> dict:
     """节点: 探索项目结构"""
     user_input = state.get("user_input", "")
     language = state.get("language", "")
+    # 如果 user_input 为空，从 messages 中提取
+    if not user_input:
+        for msg in state.get("messages", []):
+            if isinstance(msg, HumanMessage) and msg.content:
+                user_input = msg.content
+                break
 
     skill_hint = _build_skill_hint(language) if language else ""
 
@@ -579,6 +602,12 @@ def chat_respond(state: AgentState) -> dict:
     """
     user_input = state.get("user_input", "")
     language = state.get("language", "")
+    # 如果 user_input 为空，从 messages 中提取
+    if not user_input:
+        for msg in state.get("messages", []):
+            if isinstance(msg, HumanMessage) and msg.content:
+                user_input = msg.content
+                break
 
     skill_hint = _build_skill_hint(language) if language else ""
 

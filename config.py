@@ -1,17 +1,37 @@
 # -*- coding: utf-8 -*-
 """Dev Agent 配置文件"""
 
-# DeepSeek API配置（请替换为你自己的 API Key）
-API_KEY = "xxx"
-BASE_URL = "https://api.deepseek.com/v1"
-MODEL = "deepseek-chat"
+# ============ 多模型配置 ============
+# 预设模型配置，切换 ACTIVE_MODEL 即可更换 LLM 后端
+# 也支持其他 OpenAI 兼容 API，按此格式添加即可
+MODEL_CONFIGS = {
+    "deepseek": {
+        "api_key": "xxx",  # 替换为你的 DeepSeek API Key
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+    },
+    "glm": {
+        "api_key": "xxx",  # 替换为你的智谱 API Key
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-5.1",
+    },
+}
 
-# 代码执行限制
+# 当前使用的模型（修改此值切换模型: "deepseek" 或 "glm"）
+ACTIVE_MODEL = "deepseek"
+
+# 自动导出当前模型的配置（其他模块 import API_KEY/BASE_URL/MODEL 即可）
+_current = MODEL_CONFIGS[ACTIVE_MODEL]
+API_KEY = _current["api_key"]
+BASE_URL = _current["base_url"]
+MODEL = _current["model"]
+
+# ============ 代码执行限制 ============
 PYTHON_TIMEOUT = 30          # Python代码执行超时（秒）
 JAVA_TIMEOUT = 60            # Java编译运行超时（秒）
 MAX_OUTPUT_LENGTH = 5000     # 最大输出长度
 
-# Hook安全配置
+# ============ Hook安全配置 ============
 DANGEROUS_PYTHON_PATTERNS = [
     "os.system", "os.remove", "os.rmdir", "shutil.rmtree",
     "subprocess.call", "subprocess.Popen",

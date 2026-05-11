@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-LLM 封装层 - 通过 LangChain OpenAI 兼容接口封装 DeepSeek API
+LLM 封装层 - 多模型适配（DeepSeek / GLM 等 OpenAI 兼容 API）
 支持多模型切换、结构化输出（通过 function calling）、流式响应
 """
 import json
@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
-from config import API_KEY, BASE_URL, MODEL
+from config import API_KEY, BASE_URL, MODEL, MODEL_CONFIGS
 
 
 # 模型别名映射
@@ -24,10 +24,21 @@ def get_llm(model: str = None, temperature: float = 0, streaming: bool = False) 
     获取 LLM 实例
 
     Args:
-        model: 模型名称或别名（fast/strong/default），None 则用配置默认值
+        model: 模型名称、别名（fast/strong/default）或 preset 名（deepseek/glm），None 则用配置默认值
         temperature: 温度参数
         streaming: 是否启用流式输出
     """
+    # 支持通过 preset 名切换（如 "deepseek", "glm"）
+    if model and model in MODEL_CONFIGS:
+        preset = MODEL_CONFIGS[model]
+        return ChatOpenAI(
+            base_url=preset["base_url"],
+            api_key=preset["api_key"],
+            model=preset["model"],
+            temperature=temperature,
+            streaming=streaming,
+        )
+
     model_name = MODEL_ALIASES.get(model, model or MODEL)
 
     return ChatOpenAI(
@@ -60,7 +71,7 @@ def get_structured_llm(
     """
     获取支持结构化输出的 LLM 实例（通过 function calling）
 
-    DeepSeek 不支持 response_format 的 JSON schema，
+    DeepSeek/GLM 均不支持 response_format 的 JSON schema，
     因此通过 function calling 实现结构化输出。
 
     Args:
@@ -78,7 +89,7 @@ def get_structured_llm(
 class StructuredLLM:
     """
     通过 function calling 实现结构化输出
-    兼容 DeepSeek 等不支持 response_format 的 API
+    兼容 DeepSeek / GLM 等不支持 response_format 的 API
     """
 
     def __init__(self, llm: BaseChatModel, pydantic_model: type[BaseModel]):
@@ -88,10 +99,10 @@ class StructuredLLM:
 
     def invoke(self, messages, **kwargs):
         """调用 LLM 并返回解析后的 Pydantic 对象"""
-        # 绑定 function
+        # 使用 tool_choice="auto" 以兼容 DeepSeek/GLM
         llm_with_func = self.llm.bind_tools(
             [self.function_schema],
-            tool_choice={"type": "function", "function": {"name": self.pydantic_model.__name__}},
+            tool_choice="auto",
         )
 
         response = llm_with_func.invoke(messages, **kwargs)
@@ -105,7 +116,6 @@ class StructuredLLM:
         # 降级：尝试从文本内容中解析 JSON
         if response.content:
             try:
-                # 尝试从 markdown code block 中提取
                 content = response.content
                 if "```json" in content:
                     content = content.split("```json")[1].split("```")[0]
