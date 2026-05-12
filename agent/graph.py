@@ -9,16 +9,16 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
-from state import AgentState, TaskClassification, ExplorationResult, DesignResult, ReviewResult
-from llm import get_llm, get_structured_llm
-from tools_langchain import get_all_tools, get_all_tool_map
-from config import MODEL, BIGDA_SQL_CONFIG
-from agents import get_agent_prompt
-from lang_skills import get_skill
-from skill_loader import load_all_skills, get_all_skill_prompts
+from core.state import AgentState, TaskClassification, ExplorationResult, DesignResult, ReviewResult
+from core.llm import get_llm, get_structured_llm
+from tools.langchain_adapter import get_all_tools, get_all_tool_map
+from core.config import MODEL
+from agent.agents import get_agent_prompt
+from agent.lang_skills import get_skill
+from agent.skill_loader import load_all_skills, get_all_skill_prompts
 
-# 启动时加载所有外部 skill
-load_all_skills(config_overrides={"bigda_sql": BIGDA_SQL_CONFIG})
+# 启动时加载所有外部 skill（无 skill 时为空，可按需在 skills/ 下添加）
+load_all_skills()
 
 # 动态获取所有工具（核心 + skill）
 LANGCHAIN_TOOLS = get_all_tools()
@@ -48,7 +48,7 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 3. 代码搜索: 正则搜索代码，快速定位关键代码
 4. 语义搜索: 用自然语言描述找到相关代码（基于AI语义理解）
 5. Python执行: 在沙箱中执行Python代码，验证逻辑
-6. SQL执行: 通过Bigda API执行Spark SQL查询
+6. SQL执行: 通过外部skill执行SQL查询
 7. Java执行: 编译运行Java代码片段
 8. 项目分析: Python/Java项目深度分析（入口点、依赖、架构）
 9. SQL分析: 语法检查、表血缘、字段映射
@@ -525,7 +525,7 @@ def review_code(state: AgentState) -> dict:
     files_written = implementation.get("files_written", []) if implementation else []
 
     if files_written:
-        from tools import tool_read_file
+        from tools.file_ops import tool_read_file
         code_parts = []
         for fp in files_written[:5]:
             try:
@@ -598,7 +598,7 @@ def review_code(state: AgentState) -> dict:
             ])
             all_issues.extend([issue.model_dump() for issue in result.issues])
         except Exception:
-            from tools import tool_code_review
+            from tools.analysis import tool_code_review
             tool_code_review({"code": code_to_review[:3000], "language": language})
 
     return {

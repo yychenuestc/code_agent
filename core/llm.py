@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
-from config import API_KEY, BASE_URL, MODEL, MODEL_CONFIGS
+from core.config import API_KEY, BASE_URL, MODEL, MODEL_CONFIGS
 
 
 # 模型别名映射
@@ -24,7 +24,7 @@ def get_llm(model: str = None, temperature: float = 0, streaming: bool = False) 
     获取 LLM 实例
 
     Args:
-        model: 模型名称、别名（fast/strong/default）或 preset 名（deepseek/glm），None 则用配置默认值
+        model: 模型名称或别名（fast/strong/default/preset名），None 则用配置默认值
         temperature: 温度参数
         streaming: 是否启用流式输出
     """

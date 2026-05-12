@@ -8,8 +8,8 @@ import sys
 import io
 import uuid
 
-from graph import build_graph
-from lang_skills import detect_language
+from agent.graph import build_graph
+from agent.lang_skills import detect_language
 from langchain_core.messages import HumanMessage, AIMessage
 
 # 修复Windows控制台Unicode输出

@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Dev Agent 配置文件"""
+"""Code Agent 配置文件"""
 
 # ============ 多模型配置 ============
 # 预设模型配置，切换 ACTIVE_MODEL 即可更换 LLM 后端
-# 也支持其他 OpenAI 兼容 API，按此格式添加即可
+# 使用前请填入你的 API Key
 MODEL_CONFIGS = {
     "deepseek": {
-        "api_key": "xxx",  # 替换为你的 DeepSeek API Key
+        "api_key": "your-deepseek-api-key",
         "base_url": "https://api.deepseek.com/v1",
         "model": "deepseek-chat",
     },
     "glm": {
-        "api_key": "xxx",  # 替换为你的智谱 API Key
+        "api_key": "your-zhipu-api-key",
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
         "model": "glm-5.1",
     },

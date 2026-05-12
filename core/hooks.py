@@ -3,9 +3,9 @@
 Hook拦截器 - 安全检查 + 操作确认
 借鉴 Claude Code 的 Hook 系统：独立于Agent的安全层，强制拦截危险操作
 
-SQL 安全检查由外部 skill 提供（check_sql_safety）
+SQL 安全检查已移至外部 skill（check_sql_safety）
 """
-from config import (
+from core.config import (
     DANGEROUS_PYTHON_PATTERNS, DANGEROUS_JAVA_PATTERNS,
     FILE_WRITE_CONFIRM_THRESHOLD, CONFIDENCE_THRESHOLD
 )
@@ -49,7 +49,7 @@ def check_python_safety(code):
     return HookResult(allowed=True)
 
 
-# check_sql_safety 由外部 skill 提供
+# check_sql_safety 已移至外部 skill
 # 由 skill 内部提供，不再在此文件中定义
 
 

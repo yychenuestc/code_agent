@@ -7,8 +7,8 @@ import json
 import time
 from typing import Callable
 
-from graph import build_graph
-from state import AgentState
+from agent.graph import build_graph
+from core.state import AgentState
 from langchain_core.messages import HumanMessage
 
 

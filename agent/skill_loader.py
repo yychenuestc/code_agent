@@ -17,8 +17,8 @@ import os
 import json
 import importlib
 
-# skills 目录
-SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
+# skills 目录（始终在项目根目录下）
+SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills")
 
 # 已加载的 skill 缓存
 _loaded_skills = {}

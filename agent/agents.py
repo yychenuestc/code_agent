@@ -3,8 +3,8 @@
 专职Agent定义 - 借鉴 Claude Code feature-dev 的并行Agent调度
 每个Agent有独立的system prompt、可用工具集和职责边界
 """
-from config import MODEL, BASE_URL, API_KEY
-from lang_skills import get_skill
+from core.config import MODEL, BASE_URL, API_KEY
+from agent.lang_skills import get_skill
 
 # ============================================================
 # Agent 定义（YAML frontmatter 风格，对应 Claude Code 的 .md 定义）

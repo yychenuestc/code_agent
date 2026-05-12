@@ -1,29 +1,37 @@
 # -*- coding: utf-8 -*-
 """
-LangChain Tool 适配层 - 将核心 tools.py 的工具函数封装为 LangChain Tool
+LangChain Tool 适配层 - 将工具函数封装为 LangChain Tool
 SQL 查询工具由外部 skill 提供，不在此文件中
 """
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.tools import tool
 
-from tools import (
+from tools.file_ops import (
     tool_scan_project,
     tool_read_file,
     tool_write_file,
     tool_edit_file,
+)
+from tools.search import (
     tool_search_code,
+    tool_semantic_search,
+)
+from tools.execution import (
     tool_execute_python,
     tool_execute_java,
+)
+from tools.analysis import (
     tool_analyze_python,
     tool_analyze_java,
     tool_analyze_sql,
     tool_code_review,
+)
+from tools.git_ops import (
     tool_git_status,
     tool_git_diff,
     tool_git_commit,
     tool_git_checkout,
-    tool_semantic_search,
 )
 
 
@@ -191,14 +199,14 @@ CORE_TOOL_MAP = {t.name: t for t in CORE_TOOLS}
 
 def get_all_tools():
     """获取所有工具（核心 + 外部 skill 动态加载）"""
-    from skill_loader import get_all_tools as get_skill_tools
+    from agent.skill_loader import get_all_tools as get_skill_tools
     return CORE_TOOLS + get_skill_tools()
 
 
 def get_all_tool_map():
     """获取所有工具映射（核心 + 外部 skill 动态加载）"""
     tool_map = dict(CORE_TOOL_MAP)
-    from skill_loader import get_all_tools as get_skill_tools
+    from agent.skill_loader import get_all_tools as get_skill_tools
     for t in get_skill_tools():
         tool_map[t.name] = t
     return tool_map
