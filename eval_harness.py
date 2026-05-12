@@ -4,12 +4,16 @@
 覆盖 analyze / develop / review / chat 四类任务
 """
 import json
+import os
 import time
 from typing import Callable
 
 from agent.graph import build_graph
 from core.state import AgentState
 from langchain_core.messages import HumanMessage
+
+# 项目根目录（eval_harness.py 所在目录）
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 # ============ 评估用例 ============
@@ -19,7 +23,7 @@ EVAL_CASES = [
     {
         "id": "analyze_01",
         "task_type": "analyze",
-        "input": "分析当前项目 /Users/chenyangyi/Documents/dev_agent 的结构",
+        "input": f"分析当前项目 {PROJECT_ROOT} 的结构",
         "expected_keywords": ["Python", "入口点", "依赖"],
         "forbidden_keywords": [],
         "check_state": lambda s: s.get("exploration_result") is not None,
