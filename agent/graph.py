@@ -12,13 +12,13 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, Tool
 from core.state import AgentState, TaskClassification, ExplorationResult, DesignResult, ReviewResult
 from core.llm import get_llm, get_structured_llm
 from tools.langchain_adapter import get_all_tools, get_all_tool_map
-from core.config import MODEL
+from core.config import MODEL, SKILL_CONFIGS
 from agent.agents import get_agent_prompt
 from agent.lang_skills import get_skill
 from agent.skill_loader import load_all_skills, get_all_skill_prompts
 
-# 启动时加载所有外部 skill（无 skill 时为空，可按需在 skills/ 下添加）
-load_all_skills()
+# 启动时加载所有外部 skill（配置从 core.config.SKILL_CONFIGS 自动读取）
+load_all_skills(config_overrides=SKILL_CONFIGS)
 
 # 动态获取所有工具（核心 + skill）
 LANGCHAIN_TOOLS = get_all_tools()

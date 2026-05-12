@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """Code Agent 配置文件"""
+import os
 
 # ============ 多模型配置 ============
 # 预设模型配置，切换 ACTIVE_MODEL 即可更换 LLM 后端
-# 使用前请填入你的 API Key
+# API Key 优先从环境变量读取，未设置则使用默认值
 MODEL_CONFIGS = {
     "deepseek": {
-        "api_key": "your-deepseek-api-key",
+        "api_key": os.environ.get("DEEPSEEK_API_KEY", "your-deepseek-api-key"),
         "base_url": "https://api.deepseek.com/v1",
         "model": "deepseek-chat",
     },
     "glm": {
-        "api_key": "your-zhipu-api-key",
+        "api_key": os.environ.get("GLM_API_KEY", "your-zhipu-api-key"),
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
         "model": "glm-5.1",
     },
@@ -49,3 +50,11 @@ FILE_WRITE_CONFIRM_THRESHOLD = 50000
 
 # 置信度过滤阈值
 CONFIDENCE_THRESHOLD = 80
+
+# ============ 外部 Skill 配置 ============
+# Skill 配置按 skill 名称索引，由 skill_loader 加载时注入到对应 skill 模块
+# 添加新 skill 配置只需在此字典中新增条目
+SKILL_CONFIGS = {}
+
+# 向后兼容
+BIGDA_SQL_CONFIG = SKILL_CONFIGS.get("bigda_sql", {})
