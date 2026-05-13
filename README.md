@@ -19,7 +19,6 @@
 code_agent/
 ├── dev_agent.py              # 主入口，交互式 REPL
 ├── eval_harness.py           # 评估框架
-├── main.py                   # 入口
 ├── core/                     # 核心基础设施
 │   ├── config.py             # 配置文件（API Key、超时、安全规则）
 │   ├── state.py              # AgentState 定义 + Pydantic 结构化输出模型
