@@ -9,7 +9,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
-from core.state import AgentState, TaskClassification, ExplorationResult, DesignResult, ReviewResult
+from core.state import AgentState, TaskClassification, ExplorationResult, DesignResult, PlanResult, ReviewResult
 from core.llm import get_llm, get_structured_llm
 from tools.langchain_adapter import get_all_tools, get_all_tool_map
 from core.config import MODEL, SKILL_CONFIGS
@@ -53,9 +53,10 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 8. 项目分析: Python/Java项目深度分析（入口点、依赖、架构）
 9. SQL分析: 语法检查、表血缘、字段映射
 10. 代码审查: 多维度审查，置信度过滤
-11. 文件写入: 创建新文件或修改代码（带安全检查）
-12. 文件编辑: 精确编辑已有文件（行范围替换/文本替换/函数替换）
-13. Git操作: 查看状态、差异、提交、分支切换
+11. 网页读取: 通过外部skill读取网页内容并提取正文
+12. 文件写入: 创建新文件或修改代码（带安全检查）
+13. 文件编辑: 精确编辑已有文件（行范围替换/文本替换/函数替换）
+14. Git操作: 查看状态、差异、提交、分支切换
 
 ## 工作流程
 
@@ -70,14 +71,16 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 1. scan_project 了解项目结构
 2. read_file 阅读相关代码
 3. 设计方案（如复杂任务可考虑多方案对比）
-4. edit_file 精确修改代码（优先使用edit_file而非write_file）
+4. 生成执行计划，将方案拆成可验证的小步骤
+5. 按计划逐步执行，优先完成当前步骤，不要跳步
+6. edit_file 精确修改代码（优先使用edit_file而非write_file）
    - 修改几行代码：用 replace 模式指定 old_text → new_text
    - 替换整个函数：用 function_replace 模式指定函数名和新代码
    - 替换指定行范围：用 line_range 模式指定起止行号
-5. write_file 创建新文件（仅当文件不存在时使用）
-6. execute_python / execute_sql / execute_java 验证代码
-7. code_review 审查代码质量
-8. git_status + git_diff 确认变更，git_commit 提交
+7. write_file 创建新文件（仅当文件不存在时使用）
+8. execute_python / execute_sql / execute_java 验证代码
+9. code_review 审查代码质量
+10. git_status + git_diff 确认变更，git_commit 提交
 
 ### Git工作流
 - 修改代码后：git_status 查看变更 → git_diff 确认差异 → git_commit 提交
@@ -94,6 +97,11 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 （SQL查询工作流由外部 skill 动态注入，参见运行时 skill_prompt）
 5. 向用户解读查询结果
 
+### 网页读取任务
+1. 当用户提供URL并要求解析网页、读取网站、提取资讯或总结内容时，必须优先使用 read_webpage 工具获取真实网页内容
+2. 根据用户要求提取重点，不要输出通用背景介绍、架构分析、改进建议等无关内容
+3. 如果 read_webpage 返回SPA/动态渲染限制提示，应明确告知无法获取真实动态内容，不要编造资讯
+
 ## 安全规则
 - 执行代码前会自动进行安全检查，拦截危险操作
 - 写文件前会确认大文件写入
@@ -106,9 +114,10 @@ SYSTEM_PROMPT = """你是一个专业的多语言程序开发智能体（Dev Age
 - 遵循现有代码风格和约定
 
 ## 严格工具调用规则
-- **禁止编造工具结果**：凡是涉及文件读取、代码执行、SQL查询、项目扫描等操作，必须调用对应工具获取真实结果，严禁凭想象编造执行结果
+- **禁止编造工具结果**：凡是涉及文件读取、网页读取、代码执行、SQL查询、项目扫描等操作，必须调用对应工具获取真实结果，严禁凭想象编造执行结果
 - **验证必须真实执行**：当任务要求"验证"、"测试"、"执行看看结果"时，必须调用 execute_python / execute_sql / execute_java 工具实际运行代码，不能仅给出理论分析就声称"验证通过"
-- **工具调用优先于推断**：能用工具获取的信息不要靠推断，例如文件内容用 read_file 读取而非猜测
+- **网页必须真实读取**：当用户提供URL并要求解析/总结网页内容时，必须调用 read_webpage 获取真实结果，不能声称网络受限后输出常见资讯类型或泛化示例
+- **工具调用优先于推断**：能用工具获取的信息不要靠推断，例如文件内容用 read_file 读取而非猜测，网页内容用 read_webpage 读取而非猜测
 - **结果引用真实数据**：回复中引用的执行结果、输出、报错等必须是工具真实返回的，不能虚构
 - SQL中使用 '${date:y-m-d}' 表示带-日期，'${date:ymd}' 表示不带-日期
 """
@@ -126,6 +135,9 @@ def _run_tool_loop(llm_with_tools, messages, max_iterations=10):
     # 需要真实执行工具的关键词
     VERIFY_KEYWORDS = ["验证", "测试", "执行", "运行", "结果", "输出", "通过", "pass"]
     EXEC_TOOLS = {"execute_python", "execute_sql", "execute_java"}
+    WEB_TOOLS = {"read_webpage"}
+    URL_KEYWORDS = ["http://", "https://", "www."]
+    WEB_KEYWORDS = ["网页", "网站", "URL", "url", "链接", "资讯", "新闻", "解析", "总结"]
 
     for iteration in range(max_iterations):
         # 修复消息兼容性：部分 API（如 GLM）不接受空 content 的消息
@@ -155,6 +167,17 @@ def _run_tool_loop(llm_with_tools, messages, max_iterations=10):
                         "请务必调用对应工具真实执行代码，获取真实结果后再回答。不要编造执行结果。"
                     )))
                     continue  # 继续循环，让 LLM 重新回复
+
+            # 一致性检查：如果用户要求解析网页/URL，但没有调用 read_webpage，不允许凭空回答
+            joined_user_text = "\n".join(getattr(m, 'content', '') for m in messages if isinstance(m, HumanMessage))
+            needs_web_read = any(kw in joined_user_text for kw in URL_KEYWORDS) and any(kw in joined_user_text for kw in WEB_KEYWORDS)
+            has_web_read = any(tr["tool"] in WEB_TOOLS for tr in all_tool_results)
+            if final_text and needs_web_read and not has_web_read:
+                messages.append(HumanMessage(content=(
+                    "用户要求解析网页/URL内容，但你没有调用 read_webpage 工具获取真实网页内容。"
+                    "请必须调用 read_webpage 工具读取URL后再回答；如果工具返回动态渲染限制，请如实说明，不要编造网页资讯。"
+                )))
+                continue
 
             return final_text, all_tool_results, messages
 
@@ -218,8 +241,9 @@ def classify_task(state: AgentState) -> dict:
             "- analyze: 用户要求分析项目结构、了解代码架构、识别技术栈\n"
             "- develop: 用户要求写代码、实现功能、开发新特性\n"
             "- review: 用户要求审查代码质量、找bug、代码review\n"
-            "- chat: 其他所有对话，包括知识问答、解释概念、SQL优化建议等\n\n"
-            "注意: 知识问答类（如'如何优化SQL'、'Python和Java区别'）应归类为 chat，不是 analyze。"
+            "- chat: 其他所有对话，包括知识问答、解释概念、SQL优化建议、网页解析/资讯提取/内容摘要等\n\n"
+            "注意: 知识问答类（如'如何优化SQL'、'Python和Java区别'）应归类为 chat，不是 analyze。\n"
+            "注意: 解析网页、读取网站、提取资讯、总结URL内容应归类为 chat，不是 analyze。"
         )),
         HumanMessage(content=user_input),
     ])
@@ -385,6 +409,80 @@ def design_solutions(state: AgentState) -> dict:
     }
 
 
+def plan_execution(state: AgentState) -> dict:
+    """节点: 生成执行计划（develop 路径）"""
+    user_input = state.get("user_input", "")
+    language = state.get("language", "")
+    exploration = state.get("exploration_result", {})
+    design_options = state.get("design_options", [])
+    chosen_index = state.get("chosen_design_index", 0)
+    chosen = design_options[chosen_index] if design_options and chosen_index < len(design_options) else {}
+
+    planner_prompt = """你是任务规划器。请把用户需求和推荐设计方案拆成可执行、可验证的小步骤。
+
+要求:
+1. 只规划，不要实际写代码
+2. 每个步骤都应有明确产物
+3. 步骤数量建议3-7个
+4. tools_needed 只填写可能需要的工具名，如 read_file/search_code/edit_file/write_file/execute_python/code_review/git_diff
+5. 计划应服务于后续实现，避免空泛描述
+"""
+
+    context = f"""用户需求: {user_input}
+语言: {language or '未知'}
+
+推荐方案:
+{json.dumps(chosen, ensure_ascii=False, indent=2)}
+
+项目探索结果:
+{json.dumps(exploration, ensure_ascii=False, indent=2)[:3000]}
+"""
+
+    try:
+        plan_llm = get_structured_llm(PlanResult, temperature=0.2)
+        plan_result = plan_llm.invoke([
+            SystemMessage(content=planner_prompt),
+            HumanMessage(content=context),
+        ])
+        plan_dict = plan_result.model_dump()
+    except Exception as e:
+        plan_dict = {
+            "steps": [
+                {
+                    "title": "理解现有代码",
+                    "description": "阅读与需求相关的代码和项目结构，确认修改位置",
+                    "expected_output": "明确需要修改的文件和函数",
+                    "tools_needed": ["read_file", "search_code"],
+                },
+                {
+                    "title": "实现修改",
+                    "description": "按照推荐方案进行代码修改或新增文件",
+                    "expected_output": "完成代码变更",
+                    "tools_needed": ["edit_file", "write_file"],
+                },
+                {
+                    "title": "验证和审查",
+                    "description": "执行必要验证并检查代码质量",
+                    "expected_output": "确认实现满足需求",
+                    "tools_needed": ["execute_python", "code_review"],
+                },
+            ],
+            "reason": f"结构化计划生成失败，使用默认三步计划: {e}",
+        }
+
+    steps = plan_dict.get("steps", [])
+    plan_text = "\n".join(
+        f"{i+1}. {step.get('title', '')}: {step.get('description', '')}"
+        for i, step in enumerate(steps)
+    )
+
+    return {
+        "plan": steps,
+        "plan_reason": plan_dict.get("reason", ""),
+        "messages": [AIMessage(content=f"[执行计划]\n{plan_text}\n理由: {plan_dict.get('reason', '')}")],
+    }
+
+
 def implement_code(state: AgentState) -> dict:
     """节点: 实现代码（develop 路径）"""
     user_input = state.get("user_input", "")
@@ -392,6 +490,8 @@ def implement_code(state: AgentState) -> dict:
     design_options = state.get("design_options", [])
     chosen_index = state.get("chosen_design_index", 0)
     exploration = state.get("exploration_result", {})
+    plan = state.get("plan", []) or []
+    plan_reason = state.get("plan_reason", "")
     iteration = state.get("iteration", 0)
     prev_error = state.get("implementation_error")
 
@@ -400,10 +500,21 @@ def implement_code(state: AgentState) -> dict:
     impl_prompt = f"用户需求: {user_input}\n"
     impl_prompt += f"选择方案: {chosen.get('name', '默认方案')}\n"
     impl_prompt += f"方案详情: {json.dumps(chosen, ensure_ascii=False)}\n"
+    if plan:
+        impl_prompt += "\n执行计划（必须按顺序完成，不要跳步）:\n"
+        for idx, step in enumerate(plan, 1):
+            impl_prompt += (
+                f"{idx}. {step.get('title', '')}: {step.get('description', '')}\n"
+                f"   预期产物: {step.get('expected_output', '')}\n"
+                f"   建议工具: {', '.join(step.get('tools_needed', [])) or '无'}\n"
+            )
+        if plan_reason:
+            impl_prompt += f"计划理由: {plan_reason}\n"
+        impl_prompt += "请每完成一个计划步骤后再进入下一步，最终总结实际完成情况。\n"
     if exploration:
         impl_prompt += f"项目上下文: {json.dumps(exploration, ensure_ascii=False)[:2000]}\n"
     if prev_error:
-        impl_prompt += f"\n上一轮实现错误: {prev_error}\n请修复此问题。\n"
+        impl_prompt += f"\n上一轮实现错误: {prev_error}\n请基于原执行计划修复此问题，必要时重复相关验证。\n"
 
     llm = get_llm()
     llm_with_tools = llm.bind_tools(LANGCHAIN_TOOLS)
@@ -420,6 +531,7 @@ def implement_code(state: AgentState) -> dict:
     implementation_text = ""
     files_written = []
     execution_results = []
+    tools_used = []
 
     for _ in range(max_iterations):
         response = llm_with_tools.invoke(messages)
@@ -434,7 +546,10 @@ def implement_code(state: AgentState) -> dict:
             if tool_fn:
                 try:
                     result = tool_fn.invoke(tc["args"])
+                    tools_used.append(tc["name"])
                     if tc["name"] == "write_file":
+                        files_written.append(tc["args"].get("file_path", ""))
+                    elif tc["name"] == "edit_file":
                         files_written.append(tc["args"].get("file_path", ""))
                     elif tc["name"] in ("execute_python", "execute_java", "execute_sql"):
                         execution_results.append(f"[{tc['name']}] {str(result)[:300]}")
@@ -447,8 +562,10 @@ def implement_code(state: AgentState) -> dict:
     return {
         "implementation": {
             "description": implementation_text[:2000],
-            "files_written": files_written,
+            "files_written": list(dict.fromkeys(fp for fp in files_written if fp)),
             "execution_results": execution_results,
+            "plan_followed": bool(plan),
+            "tools_used": tools_used,
         },
         "implementation_error": None,
         "iteration": iteration + 1,
@@ -700,6 +817,7 @@ def build_graph():
     graph.add_node("classify", classify_task)
     graph.add_node("explore", explore_project)
     graph.add_node("architect", design_solutions)
+    graph.add_node("plan", plan_execution)
     graph.add_node("implement", implement_code)
     graph.add_node("verify", verify_result)
     graph.add_node("review", review_code)
@@ -723,8 +841,9 @@ def build_graph():
     })
     graph.add_edge("report", END)
 
-    # develop 路径: architect → implement → verify → (retry | review) → END
-    graph.add_edge("architect", "implement")
+    # develop 路径: architect → plan → implement → verify → (retry | review) → END
+    graph.add_edge("architect", "plan")
+    graph.add_edge("plan", "implement")
     graph.add_edge("implement", "verify")
     graph.add_conditional_edges("verify", should_retry, {
         "architect": "architect",

@@ -43,7 +43,7 @@ EVAL_CASES = [
         "input": "为这个项目添加一个简单的健康检查接口 health_check()",
         "expected_keywords": [],
         "forbidden_keywords": [],
-        "check_state": lambda s: s.get("design_options") is not None,
+        "check_state": lambda s: s.get("design_options") is not None and bool(s.get("plan")),
     },
     {
         "id": "develop_02",
@@ -51,7 +51,15 @@ EVAL_CASES = [
         "input": "写一个 Python 函数计算斐波那契数列第n项",
         "expected_keywords": ["fibonacci", "fib"],
         "forbidden_keywords": [],
-        "check_state": lambda s: s.get("implementation") is not None,
+        "check_state": lambda s: s.get("implementation") is not None and bool(s.get("plan")),
+    },
+    {
+        "id": "develop_plan_01",
+        "task_type": "develop",
+        "input": "在项目中实现一个简单的文本清洗函数 normalize_text(text)，去掉首尾空白并把连续空格压成一个空格",
+        "expected_keywords": [],
+        "forbidden_keywords": [],
+        "check_state": lambda s: bool(s.get("plan")) and s.get("implementation", {}).get("plan_followed") is True,
     },
     # ---- review 任务 ----
     {

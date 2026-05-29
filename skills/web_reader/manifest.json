@@ -1,0 +1,13 @@
+{
+    "name": "web_reader",
+    "version": "1.0.0",
+    "description": "网页内容读取技能 - 抓取网页并提取正文内容",
+    "type": "tool_provider",
+    "tools": ["read_webpage"],
+    "hooks": [],
+    "config": {
+        "REQUEST_TIMEOUT": 15,
+        "MAX_CONTENT_LENGTH": 10000
+    },
+    "skill_prompt": "### 网页读取工作流\n当用户要求读取网页、获取网站信息时，按以下步骤执行：\n1. **读取网页**: 使用 read_webpage 工具获取网页正文内容\n2. **提取信息**: 根据用户需求从返回的内容中提取关键信息\n3. **总结输出**: 将提取的信息整理后向用户报告\n注意: 部分网站（如SPA单页应用）可能无法获取动态内容，此时应告知用户限制"
+}

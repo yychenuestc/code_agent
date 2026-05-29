@@ -26,6 +26,9 @@ class AgentState(TypedDict, total=False):
     # 设计阶段
     design_options: Optional[list]
     chosen_design_index: Optional[int]
+    # 规划阶段
+    plan: Optional[list]
+    plan_reason: Optional[str]
     # 实现阶段
     implementation: Optional[dict]
     implementation_error: Optional[str]
@@ -76,6 +79,20 @@ class DesignResult(BaseModel):
     options: list[DesignOption] = Field(description="设计方案列表（3个）")
     recommended: int = Field(description="推荐方案索引（0-based）")
     reason: str = Field(description="推荐理由")
+
+
+class PlanStep(BaseModel):
+    """执行计划步骤"""
+    title: str = Field(description="步骤标题")
+    description: str = Field(description="步骤说明，明确当前步骤要完成什么")
+    expected_output: str = Field(description="该步骤完成后的预期产物")
+    tools_needed: list[str] = Field(default_factory=list, description="该步骤可能需要使用的工具名")
+
+
+class PlanResult(BaseModel):
+    """任务执行计划"""
+    steps: list[PlanStep] = Field(description="按顺序执行的步骤列表，建议3-7步")
+    reason: str = Field(description="计划拆分理由")
 
 
 class ReviewIssue(BaseModel):
