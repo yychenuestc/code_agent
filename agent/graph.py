@@ -5,8 +5,8 @@ LangGraph 核心状态图 - 将 chat_loop 重构为显式状态机
 支持条件路由、并行审查、检查点持久化、Human-in-the-loop
 """
 import json
+import os
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
 from core.state import AgentState, TaskClassification, ExplorationResult, DesignResult, PlanResult, ReviewResult
@@ -809,6 +809,25 @@ def chat_respond(state: AgentState) -> dict:
 
 # ============ 构建图 ============
 
+def _get_checkpointer():
+    """获取会话检查点存储器。
+
+    优先使用 LangGraph SqliteSaver，将会话状态持久化到本地 SQLite 文件，
+    进程重启后仍可按 thread_id 恢复历史；依赖缺失时回退到内存 MemorySaver。
+    """
+    try:
+        import sqlite3
+        from langgraph.checkpoint.sqlite import SqliteSaver
+        from core.config import CHECKPOINT_DB_PATH
+        os.makedirs(os.path.dirname(CHECKPOINT_DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(CHECKPOINT_DB_PATH, check_same_thread=False)
+        return SqliteSaver(conn)
+    except Exception as e:
+        from langgraph.checkpoint.memory import MemorySaver
+        print(f"[graph] SqliteSaver 不可用，回退 MemorySaver（会话不持久化）: {e}")
+        return MemorySaver()
+
+
 def build_graph():
     """构建 LangGraph 状态图"""
     graph = StateGraph(AgentState)
@@ -854,5 +873,5 @@ def build_graph():
     # chat 路径
     graph.add_edge("chat_respond", END)
 
-    # 编译图（带检查点）
-    return graph.compile(checkpointer=MemorySaver())
+    # 编译图（带持久化检查点）
+    return graph.compile(checkpointer=_get_checkpointer())

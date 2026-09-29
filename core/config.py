@@ -58,3 +58,39 @@ SKILL_CONFIGS = {}
 
 # 向后兼容
 BIGDA_SQL_CONFIG = SKILL_CONFIGS.get("bigda_sql", {})
+
+# ============ 持久化 & 中间件配置 ============
+# 所有持久化产物（向量库、会话检查点）统一落在 PERSIST_ROOT 下，方便备份与清理。
+# 可用环境变量 CODE_AGENT_PERSIST_ROOT 覆盖，默认在项目根目录的 .cache/。
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PERSIST_ROOT = os.environ.get(
+    "CODE_AGENT_PERSIST_ROOT", os.path.join(_PROJECT_ROOT, ".cache")
+)
+
+# --- 向量库（Chroma，持久化到本地磁盘）---
+VECTOR_DB_DIR = os.path.join(PERSIST_ROOT, "chroma")   # Chroma PersistentClient 数据目录
+VECTOR_TOP_K = 10                                       # 默认召回条数
+VECTOR_MIN_SCORE = 0.1                                  # 余弦相似度最低阈值
+CHUNK_SIZE = 50                                         # 代码分块行数
+CHUNK_OVERLAP = 10                                      # 分块重叠行数
+
+# --- 会话记忆持久化（LangGraph SqliteSaver）---
+CHECKPOINT_DB_PATH = os.path.join(PERSIST_ROOT, "checkpoints.sqlite")
+
+# --- 嵌入模型配置 ---
+# 默认走 OpenAI 兼容的 Embedding API（与主 LLM 一样用 API，不需本地下载模型）。
+# 若无可用 Embedding API，可将 ACTIVE_EMBEDDING 设为 "local"，回退到本地 sentence-transformers。
+EMBEDDING_CONFIGS = {
+    "api": {
+        # 兼容 OpenAI /embeddings 协议的服务端点。DeepSeek 暂无 embedding，
+        # 默认用智谱 GLM 的 embedding-3；也可换成 OpenAI text-embedding-3-small 等。
+        "base_url": os.environ.get("EMBEDDING_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+        "api_key": os.environ.get("EMBEDDING_API_KEY", os.environ.get("GLM_API_KEY", "your-embedding-api-key")),
+        "model": os.environ.get("EMBEDDING_MODEL", "embedding-3"),
+    },
+    "local": {
+        "model": os.environ.get("LOCAL_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2"),
+    },
+}
+# "api" = 在线 Embedding API（默认）；"local" = 本地 sentence-transformers
+ACTIVE_EMBEDDING = os.environ.get("CODE_AGENT_EMBEDDING", "api")

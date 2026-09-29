@@ -13,6 +13,7 @@
 - **Skill 插件体系**：通过 `skills/` 目录扩展能力，内置 `web_reader` 网页读取 skill。
 - **安全拦截层**：Hook 系统拦截危险代码执行、危险文件写入等操作。
 - **一致性校验**：防止模型编造工具执行结果，要求网页读取、代码执行等场景调用真实工具。
+- **持久化中间件**：向量检索基于 Chroma 向量库、会话记忆基于 LangGraph SqliteSaver，索引与对话历史均落盘，进程重启不丢失。
 
 ## 项目结构
 
@@ -96,7 +97,11 @@ Router 分类
 ## 安装
 
 ```bash
-pip install langchain-core langchain-openai langgraph requests sentence-transformers pydantic
+pip install langchain-core langchain-openai langgraph requests pydantic
+# 持久化中间件：Chroma 向量库 + LangGraph SQLite 检查点
+pip install chromadb langgraph-checkpoint-sqlite
+# 可选：本地嵌入兜底（未配置在线 Embedding API 时使用）
+pip install sentence-transformers
 ```
 
 ## 配置
@@ -106,6 +111,10 @@ API Key 不应写入代码，使用环境变量配置：
 ```bash
 export DEEPSEEK_API_KEY="your-deepseek-api-key"
 export GLM_API_KEY="your-zhipu-api-key"
+# 嵌入 API（RAG 向量化，默认走 OpenAI 兼容 /embeddings 端点）
+export EMBEDDING_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+export EMBEDDING_API_KEY="your-embedding-api-key"
+export EMBEDDING_MODEL="embedding-3"
 ```
 
 在 `core/config.py` 中通过 `ACTIVE_MODEL` 切换模型：
@@ -113,6 +122,14 @@ export GLM_API_KEY="your-zhipu-api-key"
 ```python
 ACTIVE_MODEL = "deepseek"  # 或 "glm"
 ```
+
+## 持久化与中间件
+
+所有持久化产物默认落在项目根目录的 `.cache/`（可用环境变量 `CODE_AGENT_PERSIST_ROOT` 覆盖）：
+
+- **向量库 / RAG**：`tools/semantic_search.py` 基于 **Chroma**（`PersistentClient`）存储代码分块向量到 `.cache/chroma/`，按项目路径生成独立 collection，按文件 MD5 做增量更新。若未安装 `chromadb`，自动回退到内存 numpy 检索。
+- **会话记忆**：`agent/graph.py` 使用 **LangGraph SqliteSaver**，会话状态持久化到 `.cache/checkpoints.sqlite`，按 `thread_id` 跨进程恢复。依赖缺失时回退 `MemorySaver`（不持久化）。
+- **嵌入模型**：默认调用在线 Embedding API（OpenAI 兼容），通过 `ACTIVE_EMBEDDING="local"` 可切换到本地 `sentence-transformers` 兜底。
 
 ## 使用
 
@@ -179,10 +196,11 @@ python3 eval_harness.py --case develop_plan_01
 
 ## 技术栈
 
-- **LangGraph**：状态图编排。
-- **LangChain**：消息类型、工具绑定、LLM 抽象。
+- **LangGraph**：状态图编排 + SqliteSaver 会话持久化。
+- **LangChain**：消息类型、工具绑定、LLM 抽象、Embedding 抽象。
 - **Pydantic**：结构化输出 schema 与校验。
-- **sentence-transformers**：语义代码搜索。
+- **Chroma**：持久化向量库，承载 RAG 代码语义检索。
+- **sentence-transformers**：本地嵌入兜底（可选）。
 - **Requests**：网页读取和 HTTP 调用。
 
 ## License

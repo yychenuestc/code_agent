@@ -8,7 +8,10 @@ from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
-from core.config import API_KEY, BASE_URL, MODEL, MODEL_CONFIGS
+from core.config import (
+    API_KEY, BASE_URL, MODEL, MODEL_CONFIGS,
+    EMBEDDING_CONFIGS, ACTIVE_EMBEDDING,
+)
 
 
 # 模型别名映射
@@ -128,3 +131,57 @@ class StructuredLLM:
 
         # 最终降级：返回默认值
         return self.pydantic_model.model_validate({})
+
+
+# ============ 嵌入模型（RAG 向量化）============
+
+class _LocalEmbeddings:
+    """本地 sentence-transformers 嵌入，暴露 LangChain Embeddings 风格接口。
+
+    仅在 ACTIVE_EMBEDDING == "local" 或在线 API 不可用时作为兜底使用。
+    """
+
+    def __init__(self, model_name: str):
+        self._model_name = model_name
+        self._model = None
+
+    def _load(self):
+        if self._model is None:
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer(self._model_name)
+        return self._model
+
+    def embed_documents(self, texts):
+        model = self._load()
+        return model.encode(list(texts), show_progress_bar=False, batch_size=32).tolist()
+
+    def embed_query(self, text):
+        model = self._load()
+        return model.encode([text], show_progress_bar=False)[0].tolist()
+
+
+def get_embeddings(provider: str = None):
+    """获取嵌入器（LangChain Embeddings 接口：embed_documents / embed_query）。
+
+    Args:
+        provider: "api"（OpenAI 兼容 Embedding API）或 "local"（本地模型）。
+                  None 时读取 core.config.ACTIVE_EMBEDDING。
+
+    默认走在线 Embedding API；若依赖缺失或未配置，可显式使用 "local" 回退。
+    """
+    provider = provider or ACTIVE_EMBEDDING
+
+    if provider == "local":
+        cfg = EMBEDDING_CONFIGS["local"]
+        return _LocalEmbeddings(cfg["model"])
+
+    # 默认：OpenAI 兼容 Embedding API
+    from langchain_openai import OpenAIEmbeddings
+    cfg = EMBEDDING_CONFIGS["api"]
+    return OpenAIEmbeddings(
+        base_url=cfg["base_url"],
+        api_key=cfg["api_key"],
+        model=cfg["model"],
+        # 非 OpenAI 官方端点不做 tiktoken 长度校验，避免不兼容
+        check_embedding_ctx_length=False,
+    )
