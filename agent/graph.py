@@ -14,7 +14,7 @@ from core.llm import get_llm, get_structured_llm
 from tools.langchain_adapter import get_all_tools, get_all_tool_map
 from core.config import MODEL, SKILL_CONFIGS
 from agent.agents import get_agent_prompt
-from agent.lang_skills import get_skill
+from agent.lang_skills import get_skill, detect_language
 from agent.skill_loader import load_all_skills, get_all_skill_prompts
 
 # 启动时加载所有外部 skill（配置从 core.config.SKILL_CONFIGS 自动读取）
@@ -216,12 +216,21 @@ def classify_task(state: AgentState) -> dict:
     existing_type = state.get("task_type", "")
     existing_lang = state.get("language", "")
 
-    # 已有明确分类，跳过 LLM
+    # 已有明确分类，跳过 LLM；但语言为空时仍自动识别一次
     if existing_type in ("analyze", "develop", "review"):
+        language = existing_lang
+        if not language:
+            user_input = state.get("user_input", "")
+            if not user_input:
+                for msg in state.get("messages", []):
+                    if isinstance(msg, HumanMessage) and msg.content:
+                        user_input = msg.content
+                        break
+            language = detect_language(user_input) or ""
         return {
             "task_type": existing_type,
-            "language": existing_lang,
-            "messages": [AIMessage(content=f"[分类] 任务类型: {existing_type}, 语言: {existing_lang} (命令指定)")],
+            "language": language,
+            "messages": [AIMessage(content=f"[分类] 任务类型: {existing_type}, 语言: {language or '未指定'} (命令指定)")],
         }
 
     # 无明确分类，用 LLM 判断

@@ -167,7 +167,7 @@ def detect_language(context: str) -> str:
 
     # Java检测
     java_keywords = ["public class", "import java", "spring boot", "maven",
-                     "gradle", "@service", "@controller", "pom.xml", ".java"]
+                     "gradle", "@service", "@controller", "pom.xml", ".java", "java"]
     if any(kw in context_lower for kw in java_keywords):
         return "java"
 
