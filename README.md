@@ -38,10 +38,13 @@ code_agent/
 │   ├── analysis.py           # analyze_python / analyze_java / analyze_sql / code_review
 │   ├── git_ops.py            # git_status / git_diff / git_commit / git_checkout
 │   ├── langchain_adapter.py  # LangChain @tool 适配层
-│   ├── semantic_search.py    # 语义代码搜索引擎
-│   └── text_utils.py         # 文本处理辅助函数
-└── skills/                   # 外部 Skill 插件
-    └── web_reader/           # 网页读取工具 read_webpage
+│   └── semantic_search.py    # 语义代码搜索（Chroma 向量库 + 嵌入）
+├── skills/                   # 外部 Skill 插件
+│   └── web_reader/           # 网页读取工具 read_webpage
+└── web/                      # Web 界面
+    ├── server.py             # FastAPI 后端（SSE 流式）
+    ├── index.html            # 单页前端
+    └── app.js                # 前端逻辑
 ```
 
 ## 状态图流程
@@ -159,6 +162,32 @@ You> /analyze /path/to/project
 You> /develop 给这个项目添加一个 health_check() 函数
 You> 总结 https://example.com 的页面内容
 ```
+
+## Web 界面
+
+除命令行 REPL 外，提供基于 FastAPI + 原生前端的 Web 界面，复用同一套状态图并以 SSE 流式展示每个节点的执行过程。
+
+安装（uvicorn 已随 chromadb 引入，只需补 fastapi）：
+
+```bash
+pip install fastapi uvicorn
+```
+
+启动：
+
+```bash
+python web/server.py
+# 或
+uvicorn web.server:app --host 127.0.0.1 --port 8000
+```
+
+浏览器打开 `http://127.0.0.1:8000`。界面支持：任务模式选择（自动/analyze/develop/review/chat）、语言、项目路径、新会话，以及实时的「执行过程」节点流。
+
+点击右上角 **⚙ 设置** 可直接在界面配置 `DEEPSEEK_API_KEY`（或 GLM）的 API Key：保存后立即对后续对话生效，并持久化到 `.cache/secrets.json`（已被 `.gitignore` 忽略），重启后自动加载。密钥在界面只以脱敏形式回显，接口不返回明文。密钥优先级为 `secrets.json > 环境变量 > 默认占位`。
+
+可用环境变量 `CODE_AGENT_WEB_HOST` / `CODE_AGENT_WEB_PORT` 调整监听地址。
+
+> 安全提示：Agent 具备读写文件、执行 Python/Java 代码的能力，Web 服务**默认仅绑定 `127.0.0.1` 且无鉴权**，请勿在未加认证的情况下暴露到公网或局域网。
 
 ## Skill 插件
 

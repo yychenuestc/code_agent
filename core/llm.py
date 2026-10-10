@@ -8,18 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
-from core.config import (
-    API_KEY, BASE_URL, MODEL, MODEL_CONFIGS,
-    EMBEDDING_CONFIGS, ACTIVE_EMBEDDING,
-)
-
-
-# 模型别名映射
-MODEL_ALIASES = {
-    "fast": "deepseek-chat",
-    "strong": "deepseek-reasoner",
-    "default": MODEL,
-}
+import core.config as config
 
 
 def get_llm(model: str = None, temperature: float = 0, streaming: bool = False) -> BaseChatModel:
@@ -30,10 +19,13 @@ def get_llm(model: str = None, temperature: float = 0, streaming: bool = False) 
         model: 模型名称或别名（fast/strong/default/preset名），None 则用配置默认值
         temperature: 温度参数
         streaming: 是否启用流式输出
+
+    说明：所有配置均从 core.config 动态读取，因此 Web 界面在运行期更新 API Key 后，
+    下一次调用 get_llm() 新建的实例会立即使用新 Key。
     """
     # 支持通过 preset 名切换（如 "deepseek", "glm"）
-    if model and model in MODEL_CONFIGS:
-        preset = MODEL_CONFIGS[model]
+    if model and model in config.MODEL_CONFIGS:
+        preset = config.MODEL_CONFIGS[model]
         return ChatOpenAI(
             base_url=preset["base_url"],
             api_key=preset["api_key"],
@@ -42,11 +34,12 @@ def get_llm(model: str = None, temperature: float = 0, streaming: bool = False) 
             streaming=streaming,
         )
 
-    model_name = MODEL_ALIASES.get(model, model or MODEL)
+    aliases = {"fast": "deepseek-chat", "strong": "deepseek-reasoner", "default": config.MODEL}
+    model_name = aliases.get(model, model or config.MODEL)
 
     return ChatOpenAI(
-        base_url=BASE_URL,
-        api_key=API_KEY,
+        base_url=config.BASE_URL,
+        api_key=config.API_KEY,
         model=model_name,
         temperature=temperature,
         streaming=streaming,
@@ -169,15 +162,15 @@ def get_embeddings(provider: str = None):
 
     默认走在线 Embedding API；若依赖缺失或未配置，可显式使用 "local" 回退。
     """
-    provider = provider or ACTIVE_EMBEDDING
+    provider = provider or config.ACTIVE_EMBEDDING
 
     if provider == "local":
-        cfg = EMBEDDING_CONFIGS["local"]
+        cfg = config.EMBEDDING_CONFIGS["local"]
         return _LocalEmbeddings(cfg["model"])
 
     # 默认：OpenAI 兼容 Embedding API
     from langchain_openai import OpenAIEmbeddings
-    cfg = EMBEDDING_CONFIGS["api"]
+    cfg = config.EMBEDDING_CONFIGS["api"]
     return OpenAIEmbeddings(
         base_url=cfg["base_url"],
         api_key=cfg["api_key"],
