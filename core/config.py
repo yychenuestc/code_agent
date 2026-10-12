@@ -40,7 +40,7 @@ MODEL_CONFIGS = {
     "deepseek": {
         "api_key": _resolve_key("DEEPSEEK_API_KEY", "deepseek_api_key", "your-deepseek-api-key"),
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
     },
     "glm": {
         "api_key": _resolve_key("GLM_API_KEY", "glm_api_key", "your-zhipu-api-key"),
